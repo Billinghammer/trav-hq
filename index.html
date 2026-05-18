@@ -18,7 +18,7 @@
     .tab-btn { border-bottom: 2px solid transparent; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
-    #modal-overlay { transition: opacity 0.2s; }
+    #modal-overlay, #add-modal-overlay, #contact-modal-overlay, #deal-modal-overlay { transition: opacity 0.2s; }
     #task-modal { transition: transform 0.25s, opacity 0.25s; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { animation: spin 0.8s linear infinite; display: inline-block; }
@@ -65,7 +65,7 @@
 <!-- TAB: Tasks -->
 <div id="tab-tasks" class="tab-panel active">
   <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-    <button onclick="openAddTask()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">+ Add Task</button>
+    <button onclick="openAddTask()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">+ Task</button>
     <span id="tasks-summary" class="text-xs text-gray-500"></span>
   </div>
   <div class="kanban-scroll p-4">
@@ -113,6 +113,7 @@
 <div id="tab-contacts" class="tab-panel p-4">
   <div class="flex gap-2 mb-3 flex-wrap">
     <input id="contact-search" type="search" placeholder="Search contacts..." class="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500">
+    <button onclick="openAddContact()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-2 rounded-lg font-medium whitespace-nowrap">+ Contact</button>
     <div class="flex gap-1 flex-wrap">
       <button class="tier-btn active text-xs px-2 py-1 rounded bg-gray-700 text-white border border-gray-600" data-tier="all">All</button>
       <button class="tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700" data-tier="A+">A+</button>
@@ -128,6 +129,9 @@
 
 <!-- TAB: Deals -->
 <div id="tab-deals" class="tab-panel p-4">
+  <div class="flex items-center justify-between mb-4">
+    <button onclick="openAddDeal()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">+ Deal</button>
+  </div>
   <div id="deals-list" class="space-y-6">
     <div class="flex justify-center py-10"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>
   </div>
@@ -140,7 +144,7 @@
   </div>
 </div>
 
-<!-- Task Modal -->
+<!-- Task Edit Modal -->
 <div id="modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden opacity-0" onclick="closeModal()"></div>
 <div id="task-modal" class="fixed z-50 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 bottom-0 left-0 right-0 translate-y-full opacity-0 md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-20 md:w-full md:max-w-lg md:translate-y-0 hidden">
   <div class="flex items-center justify-between mb-4">
@@ -221,6 +225,107 @@
     </div>
   </div>
   <button onclick="submitNewTask()" class="w-full mt-5 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold">Create Task</button>
+</div>
+
+<!-- Add Contact Modal -->
+<div id="contact-modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden" onclick="closeAddContact()"></div>
+<div id="add-contact-modal" class="fixed z-50 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 bottom-0 left-0 right-0 translate-y-full md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-20 md:w-full md:max-w-lg md:translate-y-0 hidden">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-semibold text-white">New Contact</h2>
+    <button onclick="closeAddContact()" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+  </div>
+  <div class="space-y-3">
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">First Name</label>
+        <input id="c-first" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="First">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Last Name</label>
+        <input id="c-last" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="Last">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Phone</label>
+        <input id="c-phone" type="tel" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="603-xxx-xxxx">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Email</label>
+        <input id="c-email" type="email" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="email@example.com">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Tier</label>
+        <select id="c-tier" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="A+">A+</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C" selected>C</option>
+          <option value="D">D</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Stage</label>
+        <input id="c-stage" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="e.g. Buyer Lead">
+      </div>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">Next Follow-up</label>
+      <input id="c-followup" type="date" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+    </div>
+  </div>
+  <button onclick="submitNewContact()" class="w-full mt-5 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold">Create Contact</button>
+</div>
+
+<!-- Add Deal Modal -->
+<div id="deal-modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden" onclick="closeAddDeal()"></div>
+<div id="add-deal-modal" class="fixed z-50 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 bottom-0 left-0 right-0 translate-y-full md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-20 md:w-full md:max-w-lg md:translate-y-0 hidden">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-semibold text-white">New Deal</h2>
+    <button onclick="closeAddDeal()" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+  </div>
+  <div class="space-y-3">
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">Property Address</label>
+      <input id="d-address" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="123 Main St">
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">City</label>
+        <input id="d-city" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="Portsmouth">
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">State</label>
+        <input id="d-state" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="NH" maxlength="2">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Type</label>
+        <select id="d-type" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="listing">🏠 Listing</option>
+          <option value="buyer">🤝 Buyer</option>
+          <option value="development">🏗 Development</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Stage</label>
+        <select id="d-stage" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="active">Active</option>
+          <option value="prospect">Prospect</option>
+          <option value="pending">Pending</option>
+          <option value="under_contract">Under Contract</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">List Price</label>
+      <input id="d-price" type="number" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="450000">
+    </div>
+  </div>
+  <button onclick="submitNewDeal()" class="w-full mt-5 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold">Create Deal</button>
 </div>
 
 <script>
@@ -428,7 +533,7 @@ async function loadTasks() {
   } catch (_) {}
 }
 
-// ── Task Modal ────────────────────────────────────────────
+// ── Task Edit Modal ────────────────────────────────────────
 function openTaskModal(id) {
   const t = allTasks.find(x => String(x.id) === String(id));
   if (!t) return;
@@ -551,6 +656,40 @@ async function submitNewTask() {
   } catch (_) {}
 }
 
+// ── Add Contact Modal ─────────────────────────────────────
+function openAddContact() {
+  ['c-first','c-last','c-phone','c-email','c-stage','c-followup'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('c-tier').value = 'C';
+  document.getElementById('contact-modal-overlay').classList.remove('hidden');
+  const m = document.getElementById('add-contact-modal');
+  m.classList.remove('hidden');
+  requestAnimationFrame(() => { m.classList.remove('translate-y-full'); document.getElementById('c-first').focus(); });
+}
+function closeAddContact() {
+  document.getElementById('add-contact-modal').classList.add('translate-y-full');
+  document.getElementById('contact-modal-overlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('add-contact-modal').classList.add('hidden'), 250);
+}
+async function submitNewContact() {
+  const first = document.getElementById('c-first').value.trim();
+  const last = document.getElementById('c-last').value.trim();
+  if (!first && !last) { toast('Name required', true); return; }
+  try {
+    await api('POST', '?api=contact', {
+      first_name: first || null,
+      last_name: last || null,
+      phone: document.getElementById('c-phone').value.trim() || null,
+      email: document.getElementById('c-email').value.trim() || null,
+      tier: document.getElementById('c-tier').value,
+      stage: document.getElementById('c-stage').value.trim() || null,
+      next_follow_up: document.getElementById('c-followup').value || null,
+    });
+    closeAddContact();
+    toast('Contact created');
+    searchContacts();
+  } catch (_) {}
+}
+
 // ── Contacts ──────────────────────────────────────────────
 function tierBadge(tier) {
   const map = { 'A+': 'bg-yellow-900 text-yellow-300', A: 'bg-blue-900 text-blue-300', B: 'bg-gray-700 text-gray-300', C: 'bg-gray-800 text-gray-500' };
@@ -595,6 +734,40 @@ document.querySelectorAll('.tier-btn').forEach(btn => {
     searchContacts();
   });
 });
+
+// ── Add Deal Modal ────────────────────────────────────────
+function openAddDeal() {
+  ['d-address','d-city','d-price'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('d-state').value = 'NH';
+  document.getElementById('d-type').value = 'listing';
+  document.getElementById('d-stage').value = 'active';
+  document.getElementById('deal-modal-overlay').classList.remove('hidden');
+  const m = document.getElementById('add-deal-modal');
+  m.classList.remove('hidden');
+  requestAnimationFrame(() => { m.classList.remove('translate-y-full'); document.getElementById('d-address').focus(); });
+}
+function closeAddDeal() {
+  document.getElementById('add-deal-modal').classList.add('translate-y-full');
+  document.getElementById('deal-modal-overlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('add-deal-modal').classList.add('hidden'), 250);
+}
+async function submitNewDeal() {
+  const address = document.getElementById('d-address').value.trim();
+  if (!address) { toast('Address required', true); return; }
+  try {
+    await api('POST', '?api=deal', {
+      property_address: address,
+      city: document.getElementById('d-city').value.trim() || null,
+      state: document.getElementById('d-state').value.trim() || 'NH',
+      type: document.getElementById('d-type').value,
+      stage: document.getElementById('d-stage').value,
+      list_price: document.getElementById('d-price').value || null,
+    });
+    closeAddDeal();
+    toast('Deal created');
+    loadDeals();
+  } catch (_) {}
+}
 
 // ── Deals ─────────────────────────────────────────────────
 function stageBadge(stage) {
