@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TRAV HQ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <style>
+    body { background: #030712; font-family: system-ui, -apple-system, sans-serif; }
+    .kanban-col { min-width: 260px; max-width: 300px; flex-shrink: 0; }
+    .kanban-scroll { overflow-x: auto; }
+    .task-card { cursor: pointer; transition: transform 0.1s; }
+    .task-card:hover { transform: translateY(-1px); }
+    .sortable-ghost { opacity: 0.4; }
+    .sortable-drag { opacity: 0; }
+    .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #f8fafc; }
+    .tab-btn { border-bottom: 2px solid transparent; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    #modal-overlay { transition: opacity 0.2s; }
+    #task-modal { transition: transform 0.25s, opacity 0.25s; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; display: inline-block; }
+    #toast { transition: transform 0.3s, opacity 0.3s; }
+  </style>
+</head>
+<body class="min-h-screen text-gray-100">
+
+<!-- Login overlay -->
+<div id="login-overlay" class="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center" style="display:none!important">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-full max-w-sm mx-4">
+    <h1 class="text-xl font-bold text-white mb-1">TRAV HQ</h1>
+    <p class="text-gray-500 text-sm mb-6">Personal AI Operating System</p>
+    <input id="pw-input" type="password" placeholder="Access token" autocomplete="current-password"
+      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500 mb-3">
+    <button onclick="doLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-sm font-semibold">Enter</button>
+    <div id="login-err" class="text-red-400 text-xs mt-2 text-center"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-lg z-50 opacity-0 translate-y-4 pointer-events-none"></div>
+
+<!-- Header -->
+<header class="bg-gray-900 border-b border-gray-800 sticky top-0 z-30">
+  <div class="flex items-center justify-between px-4 py-3">
+    <div>
+      <h1 class="text-lg font-bold tracking-tight">TRAV HQ</h1>
+      <div id="last-updated" class="text-xs text-gray-500">Loading...</div>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="refreshAll()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-medium">&#x21BB; Refresh</button>
+      <button onclick="logout()" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-1.5 rounded-lg font-medium">Out</button>
+    </div>
+  </div>
+  <div class="flex border-t border-gray-800 overflow-x-auto">
+    <button class="tab-btn active text-sm text-gray-400 px-5 py-2.5 whitespace-nowrap" onclick="switchTab('tasks',this)">Tasks</button>
+    <button class="tab-btn text-sm text-gray-400 px-5 py-2.5 whitespace-nowrap" onclick="switchTab('contacts',this)">Contacts</button>
+    <button class="tab-btn text-sm text-gray-400 px-5 py-2.5 whitespace-nowrap" onclick="switchTab('deals',this)">Deals</button>
+    <button class="tab-btn text-sm text-gray-400 px-5 py-2.5 whitespace-nowrap" onclick="switchTab('dump',this)">Brain Dump</button>
+  </div>
+</header>
+
+<!-- TAB: Tasks -->
+<div id="tab-tasks" class="tab-panel active">
+  <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+    <button onclick="openAddTask()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium">+ Add Task</button>
+    <span id="tasks-summary" class="text-xs text-gray-500"></span>
+  </div>
+  <div class="kanban-scroll p-4">
+    <div class="flex gap-4 min-w-max">
+      <div class="kanban-col">
+        <div class="bg-red-950 border border-red-800 rounded-t-xl px-3 py-2 flex items-center justify-between mb-2">
+          <span class="text-red-400 text-xs font-bold uppercase">Overdue</span>
+          <span id="badge-overdue" class="bg-red-900 text-red-300 text-xs px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="col-overdue" class="bg-gray-900 border border-gray-800 border-t-0 rounded-b-xl min-h-[200px] p-2 space-y-2" data-col="overdue"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="bg-gray-900 border border-gray-800 rounded-t-xl px-3 py-2 flex items-center justify-between mb-2">
+          <span class="text-white text-xs font-bold uppercase">Today</span>
+          <span id="badge-today" class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="col-today" class="bg-gray-900 border border-gray-800 border-t-0 rounded-b-xl min-h-[200px] p-2 space-y-2" data-col="today"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="bg-gray-900 border border-gray-800 rounded-t-xl px-3 py-2 flex items-center justify-between mb-2">
+          <span class="text-white text-xs font-bold uppercase">This Week</span>
+          <span id="badge-week" class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="col-week" class="bg-gray-900 border border-gray-800 border-t-0 rounded-b-xl min-h-[200px] p-2 space-y-2" data-col="week"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="bg-gray-900 border border-gray-800 rounded-t-xl px-3 py-2 flex items-center justify-between mb-2">
+          <span class="text-white text-xs font-bold uppercase">This Month</span>
+          <span id="badge-month" class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="col-month" class="bg-gray-900 border border-gray-800 border-t-0 rounded-b-xl min-h-[200px] p-2 space-y-2" data-col="month"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="bg-gray-900 border border-gray-800 rounded-t-xl px-3 py-2 flex items-center justify-between mb-2">
+          <span class="text-white text-xs font-bold uppercase">Backlog</span>
+          <span id="badge-backlog" class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">0</span>
+        </div>
+        <div id="col-backlog" class="bg-gray-900 border border-gray-800 border-t-0 rounded-b-xl min-h-[200px] p-2 space-y-2" data-col="backlog"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Contacts -->
+<div id="tab-contacts" class="tab-panel p-4">
+  <div class="flex gap-2 mb-3 flex-wrap">
+    <input id="contact-search" type="search" placeholder="Search contacts..." class="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500">
+    <div class="flex gap-1 flex-wrap">
+      <button class="tier-btn active text-xs px-2 py-1 rounded bg-gray-700 text-white border border-gray-600" data-tier="all">All</button>
+      <button class="tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700" data-tier="A+">A+</button>
+      <button class="tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700" data-tier="A">A</button>
+      <button class="tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700" data-tier="B">B</button>
+      <button class="tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700" data-tier="C">C</button>
+    </div>
+  </div>
+  <div id="contacts-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="text-gray-500 text-sm col-span-2 py-8 text-center">Search to find contacts</div>
+  </div>
+</div>
+
+<!-- TAB: Deals -->
+<div id="tab-deals" class="tab-panel p-4">
+  <div id="deals-list" class="space-y-6">
+    <div class="flex justify-center py-10"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>
+  </div>
+</div>
+
+<!-- TAB: Brain Dump -->
+<div id="tab-dump" class="tab-panel p-4">
+  <div id="dump-list" class="space-y-3">
+    <div class="flex justify-center py-10"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>
+  </div>
+</div>
+
+<!-- Task Modal -->
+<div id="modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden opacity-0" onclick="closeModal()"></div>
+<div id="task-modal" class="fixed z-50 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 bottom-0 left-0 right-0 translate-y-full opacity-0 md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-20 md:w-full md:max-w-lg md:translate-y-0 hidden">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-semibold text-white">Edit Task</h2>
+    <button onclick="closeModal()" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+  </div>
+  <div class="space-y-3">
+    <input id="modal-title" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="Task title">
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Priority</label>
+        <select id="modal-priority" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="urgent">🔴 Urgent</option>
+          <option value="high">🟡 High</option>
+          <option value="normal" selected>⚪ Normal</option>
+          <option value="low">⬇ Low</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Status</label>
+        <select id="modal-status" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="done">Done</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">Due Date</label>
+      <input id="modal-due" type="date" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">Assignee</label>
+      <div class="flex gap-2">
+        <button id="assign-travis" onclick="setAssignee('travis')" class="flex-1 py-2 rounded-lg text-sm font-medium border border-blue-600 bg-blue-600/20 text-blue-300">Travis</button>
+        <button id="assign-mark" onclick="setAssignee('mark')" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400">Mark</button>
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2 mt-5">
+    <button onclick="saveTask()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold">Save</button>
+    <button onclick="markDone()" class="flex-1 bg-green-700 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-semibold">✓ Done</button>
+    <button onclick="assignToMark()" class="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm font-semibold">→ Mark</button>
+  </div>
+</div>
+
+<!-- Add Task Modal -->
+<div id="add-modal-overlay" class="fixed inset-0 bg-black/60 z-40 hidden" onclick="closeAddModal()"></div>
+<div id="add-task-modal" class="fixed z-50 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-5 bottom-0 left-0 right-0 translate-y-full md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-20 md:w-full md:max-w-lg md:translate-y-0 hidden">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-semibold text-white">New Task</h2>
+    <button onclick="closeAddModal()" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+  </div>
+  <div class="space-y-3">
+    <input id="add-title" type="text" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500" placeholder="Task title">
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Priority</label>
+        <select id="add-priority" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+          <option value="urgent">🔴 Urgent</option>
+          <option value="high">🟡 High</option>
+          <option value="normal" selected>⚪ Normal</option>
+          <option value="low">⬇ Low</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 mb-1 block">Due Date</label>
+        <input id="add-due" type="date" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+      </div>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">Assignee</label>
+      <div class="flex gap-2">
+        <button id="add-assign-travis" onclick="setAddAssignee('travis')" class="flex-1 py-2 rounded-lg text-sm font-medium border border-blue-600 bg-blue-600/20 text-blue-300">Travis</button>
+        <button id="add-assign-mark" onclick="setAddAssignee('mark')" class="flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400">Mark</button>
+      </div>
+    </div>
+  </div>
+  <button onclick="submitNewTask()" class="w-full mt-5 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-semibold">Create Task</button>
+</div>
+
+<script>
+const API_BASE = 'https://zxmhpgfiuhgcjqwyjuxz.supabase.co/functions/v1/dashboard';
+let TOKEN = localStorage.getItem('trav_token') || '';
+let allTasks = [];
+let currentModalTaskId = null;
+let modalAssignee = 'travis';
+let addAssignee = 'travis';
+let contactTier = 'all';
+let contactDebounce = null;
+
+// ── Auth ──────────────────────────────────────────────────
+function checkAuth() {
+  if (!TOKEN) {
+    document.getElementById('login-overlay').style.cssText = 'display:flex!important';
+    document.getElementById('pw-input').focus();
+  }
+}
+
+async function doLogin() {
+  const pw = document.getElementById('pw-input').value;
+  try {
+    const r = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    if (r.ok) {
+      TOKEN = pw;
+      localStorage.setItem('trav_token', pw);
+      document.getElementById('login-overlay').style.cssText = 'display:none!important';
+      loadTasks();
+    } else {
+      document.getElementById('login-err').textContent = 'Invalid token';
+    }
+  } catch (e) {
+    document.getElementById('login-err').textContent = 'Connection error';
+  }
+}
+
+document.getElementById('pw-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function logout() {
+  TOKEN = '';
+  localStorage.removeItem('trav_token');
+  checkAuth();
+}
+
+// ── Utilities ─────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('opacity-0', 'translate-y-4');
+  el.classList.add('opacity-100', 'translate-y-0');
+  if (isError) el.classList.add('bg-red-800'); else el.classList.remove('bg-red-800');
+  setTimeout(() => {
+    el.classList.remove('opacity-100', 'translate-y-0');
+    el.classList.add('opacity-0', 'translate-y-4');
+  }, 3000);
+}
+
+async function api(method, route, body) {
+  try {
+    const opts = {
+      method,
+      headers: { 'Authorization': 'Bearer ' + TOKEN }
+    };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(API_BASE + route, opts);
+    if (r.status === 401) { logout(); throw new Error('Session expired'); }
+    if (!r.ok) { const e = await r.json(); throw new Error(e.error || r.statusText); }
+    return await r.json();
+  } catch (err) {
+    toast(err.message || 'Error', true);
+    throw err;
+  }
+}
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function fridayStr() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? 5 : day <= 5 ? 5 - day : 6;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+function endOfMonthStr() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+}
+function colForDue(due) {
+  if (!due) return 'backlog';
+  const d = due.split('T')[0];
+  const today = todayStr();
+  if (d < today) return 'overdue';
+  if (d === today) return 'today';
+  if (d <= fridayStr()) return 'week';
+  if (d <= endOfMonthStr()) return 'month';
+  return 'backlog';
+}
+function dueDateForCol(col) {
+  if (col === 'today') return todayStr();
+  if (col === 'week') return fridayStr();
+  if (col === 'month') return endOfMonthStr();
+  return null;
+}
+function timeAgo(ts) {
+  const diff = Date.now() - new Date(ts).getTime();
+  const h = Math.floor(diff / 3600000);
+  if (h < 1) return 'just now';
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+// ── Tabs ──────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'deals') loadDeals();
+  if (name === 'dump') loadDump();
+}
+
+// ── Tasks / Kanban ────────────────────────────────────────
+function priorityBadge(p) {
+  const map = { urgent: 'bg-red-900 text-red-300', high: 'bg-amber-900 text-amber-300', normal: 'bg-gray-700 text-gray-300', low: 'bg-gray-800 text-gray-500' };
+  const labels = { urgent: '🔴 Urgent', high: '🟡 High', normal: '⚪ Normal', low: '⬇ Low' };
+  return '<span class="text-xs px-1.5 py-0.5 rounded ' + (map[p] || map.normal) + '">' + (labels[p] || p) + '</span>';
+}
+function assigneeBadge(a) {
+  if (a === 'mark') return '<span class="text-xs px-1.5 py-0.5 rounded bg-green-900 text-green-300">Mark</span>';
+  return '<span class="text-xs px-1.5 py-0.5 rounded bg-blue-900 text-blue-300">Travis</span>';
+}
+function taskCard(t) {
+  const today = todayStr();
+  const due = t.due_date ? t.due_date.split('T')[0] : null;
+  const isOverdue = due && due < today;
+  const dueColor = isOverdue ? 'text-red-400' : 'text-gray-500';
+  const tags = Array.isArray(t.tags) && t.tags.length
+    ? t.tags.map(tg => '<span class="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">' + esc(tg) + '</span>').join('')
+    : '';
+  const tagsHtml = tags ? '<div class="flex flex-wrap gap-1">' + tags + '</div>' : '';
+  const dueHtml = due ? '<div class="text-xs ' + dueColor + '">' + due + (isOverdue ? ' · overdue' : '') + '</div>' : '';
+  return '<div class="task-card bg-gray-800 border border-gray-700 rounded-xl p-3 space-y-2 select-none"'
+    + ' data-id="' + esc(t.id) + '"'
+    + ' onclick="openTaskModal(\'' + esc(t.id) + '\')">'
+    + '<div class="text-sm font-medium text-white leading-snug">' + esc(t.title) + '</div>'
+    + '<div class="flex flex-wrap gap-1">' + priorityBadge(t.priority || 'normal') + assigneeBadge(t.assigned_to || 'travis') + '</div>'
+    + tagsHtml + dueHtml + '</div>';
+}
+function renderKanban() {
+  const cols = { overdue: [], today: [], week: [], month: [], backlog: [] };
+  for (const t of allTasks) cols[colForDue(t.due_date)].push(t);
+  const colIds = { overdue: 'col-overdue', today: 'col-today', week: 'col-week', month: 'col-month', backlog: 'col-backlog' };
+  const badgeIds = { overdue: 'badge-overdue', today: 'badge-today', week: 'badge-week', month: 'badge-month', backlog: 'badge-backlog' };
+  for (const [key, tasks] of Object.entries(cols)) {
+    document.getElementById(colIds[key]).innerHTML = tasks.length
+      ? tasks.map(taskCard).join('')
+      : '<div class="text-xs text-gray-600 py-4 text-center">Empty</div>';
+    document.getElementById(badgeIds[key]).textContent = tasks.length;
+  }
+  document.getElementById('tasks-summary').textContent = allTasks.length + ' open' + (cols.overdue.length ? ' · ' + cols.overdue.length + ' overdue' : '');
+  initSortable();
+}
+function initSortable() {
+  ['col-today', 'col-week', 'col-month', 'col-backlog'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el._sortable) {
+      el._sortable = new Sortable(el, {
+        group: 'tasks', animation: 150,
+        ghostClass: 'sortable-ghost', dragClass: 'sortable-drag',
+        onEnd(evt) {
+          const taskId = evt.item.dataset.id;
+          const toCol = evt.to.dataset.col;
+          if (!taskId || !toCol) return;
+          patchTask({ id: taskId, due_date: dueDateForCol(toCol) }).then(updated => {
+            if (updated) {
+              const idx = allTasks.findIndex(t => String(t.id) === String(taskId));
+              if (idx >= 0) allTasks[idx] = Object.assign({}, allTasks[idx], updated);
+            }
+          });
+        }
+      });
+    }
+  });
+  const od = document.getElementById('col-overdue');
+  if (!od._sortable) od._sortable = new Sortable(od, { group: { name: 'tasks', put: false }, animation: 150, ghostClass: 'sortable-ghost' });
+}
+async function loadTasks() {
+  try {
+    allTasks = await api('GET', '?api=tasks');
+    renderKanban();
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-US', { timeStyle: 'short' }) + ' ET';
+  } catch (_) {}
+}
+
+// ── Task Modal ────────────────────────────────────────────
+function openTaskModal(id) {
+  const t = allTasks.find(x => String(x.id) === String(id));
+  if (!t) return;
+  currentModalTaskId = id;
+  modalAssignee = t.assigned_to || 'travis';
+  document.getElementById('modal-title').value = t.title || '';
+  document.getElementById('modal-priority').value = t.priority || 'normal';
+  document.getElementById('modal-status').value = t.status || 'pending';
+  document.getElementById('modal-due').value = t.due_date ? t.due_date.split('T')[0] : '';
+  updateAssigneeButtons(modalAssignee);
+  showModal();
+}
+function showModal() {
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('task-modal');
+  overlay.classList.remove('hidden');
+  modal.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    overlay.classList.remove('opacity-0');
+    overlay.classList.add('opacity-100');
+    modal.classList.remove('translate-y-full', 'opacity-0');
+    modal.classList.add('opacity-100');
+  });
+}
+function closeModal() {
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('task-modal');
+  overlay.classList.remove('opacity-100');
+  overlay.classList.add('opacity-0');
+  modal.classList.remove('opacity-100');
+  modal.classList.add('translate-y-full', 'opacity-0');
+  setTimeout(() => { overlay.classList.add('hidden'); modal.classList.add('hidden'); }, 250);
+  currentModalTaskId = null;
+}
+function setAssignee(who) { modalAssignee = who; updateAssigneeButtons(who); }
+function updateAssigneeButtons(who) {
+  const t = document.getElementById('assign-travis');
+  const m = document.getElementById('assign-mark');
+  if (who === 'travis') {
+    t.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-blue-600 bg-blue-600/20 text-blue-300';
+    m.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400';
+  } else {
+    m.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-green-600 bg-green-600/20 text-green-300';
+    t.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400';
+  }
+}
+async function patchTask(payload) {
+  try { const u = await api('PATCH', '?api=task', payload); toast('Task updated'); return u; }
+  catch (_) { return null; }
+}
+async function saveTask() {
+  if (!currentModalTaskId) return;
+  const updated = await patchTask({
+    id: currentModalTaskId,
+    title: document.getElementById('modal-title').value,
+    priority: document.getElementById('modal-priority').value,
+    status: document.getElementById('modal-status').value,
+    due_date: document.getElementById('modal-due').value || null,
+    assigned_to: modalAssignee,
+  });
+  if (updated) {
+    const idx = allTasks.findIndex(t => String(t.id) === String(currentModalTaskId));
+    if (idx >= 0) allTasks[idx] = Object.assign({}, allTasks[idx], updated);
+    renderKanban(); closeModal();
+  }
+}
+async function markDone() {
+  if (!currentModalTaskId) return;
+  const updated = await patchTask({ id: currentModalTaskId, status: 'done' });
+  if (updated) { allTasks = allTasks.filter(t => String(t.id) !== String(currentModalTaskId)); renderKanban(); closeModal(); }
+}
+async function assignToMark() {
+  if (!currentModalTaskId) return;
+  const updated = await patchTask({ id: currentModalTaskId, assigned_to: 'mark' });
+  if (updated) {
+    const idx = allTasks.findIndex(t => String(t.id) === String(currentModalTaskId));
+    if (idx >= 0) allTasks[idx] = Object.assign({}, allTasks[idx], { assigned_to: 'mark' });
+    renderKanban(); closeModal();
+  }
+}
+
+// ── Add Task Modal ────────────────────────────────────────
+function openAddTask() {
+  addAssignee = 'travis';
+  document.getElementById('add-title').value = '';
+  document.getElementById('add-priority').value = 'normal';
+  document.getElementById('add-due').value = '';
+  updateAddAssigneeButtons('travis');
+  document.getElementById('add-modal-overlay').classList.remove('hidden');
+  const m = document.getElementById('add-task-modal');
+  m.classList.remove('hidden');
+  requestAnimationFrame(() => { m.classList.remove('translate-y-full'); document.getElementById('add-title').focus(); });
+}
+function closeAddModal() {
+  document.getElementById('add-task-modal').classList.add('translate-y-full');
+  document.getElementById('add-modal-overlay').classList.add('hidden');
+  setTimeout(() => document.getElementById('add-task-modal').classList.add('hidden'), 250);
+}
+function setAddAssignee(who) { addAssignee = who; updateAddAssigneeButtons(who); }
+function updateAddAssigneeButtons(who) {
+  const t = document.getElementById('add-assign-travis');
+  const m = document.getElementById('add-assign-mark');
+  if (who === 'travis') {
+    t.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-blue-600 bg-blue-600/20 text-blue-300';
+    m.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400';
+  } else {
+    m.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-green-600 bg-green-600/20 text-green-300';
+    t.className = 'flex-1 py-2 rounded-lg text-sm font-medium border border-gray-700 bg-gray-800 text-gray-400';
+  }
+}
+async function submitNewTask() {
+  const title = document.getElementById('add-title').value.trim();
+  if (!title) { toast('Title required', true); return; }
+  try {
+    const created = await api('POST', '?api=task', {
+      title, priority: document.getElementById('add-priority').value,
+      assigned_to: addAssignee, due_date: document.getElementById('add-due').value || null,
+    });
+    allTasks.push(created); renderKanban(); closeAddModal(); toast('Task created');
+  } catch (_) {}
+}
+
+// ── Contacts ──────────────────────────────────────────────
+function tierBadge(tier) {
+  const map = { 'A+': 'bg-yellow-900 text-yellow-300', A: 'bg-blue-900 text-blue-300', B: 'bg-gray-700 text-gray-300', C: 'bg-gray-800 text-gray-500' };
+  return '<span class="text-xs px-1.5 py-0.5 rounded ' + (map[tier] || map.C) + '">' + esc(tier) + '</span>';
+}
+async function searchContacts() {
+  const q = document.getElementById('contact-search').value.trim();
+  if (!q && contactTier === 'all') {
+    document.getElementById('contacts-grid').innerHTML = '<div class="text-gray-500 text-sm col-span-2 py-8 text-center">Search to find contacts</div>';
+    return;
+  }
+  document.getElementById('contacts-grid').innerHTML = '<div class="col-span-2 flex justify-center py-8"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>';
+  try {
+    let route = '?api=contacts';
+    if (q) route += '&q=' + encodeURIComponent(q);
+    if (contactTier !== 'all') route += '&tier=' + encodeURIComponent(contactTier);
+    const data = await api('GET', route);
+    const today = todayStr();
+    if (!data.length) { document.getElementById('contacts-grid').innerHTML = '<div class="text-gray-500 text-sm col-span-2 py-8 text-center">No contacts found</div>'; return; }
+    document.getElementById('contacts-grid').innerHTML = data.map(c => {
+      const fup = c.next_followup_date ? c.next_followup_date.split('T')[0] : null;
+      const fupColor = fup && fup < today ? 'text-red-400' : 'text-gray-500';
+      const phone = c.phone ? '<a href="tel:' + esc(c.phone) + '" class="text-blue-400 hover:underline text-xs">' + esc(c.phone) + '</a>' : '';
+      const email = c.email ? '<div class="text-xs text-gray-500 truncate">' + esc(c.email) + '</div>' : '';
+      const stageHtml = c.stage ? '<div class="text-xs text-gray-400">' + esc(c.stage) + '</div>' : '';
+      const fupHtml = fup ? '<div class="text-xs ' + fupColor + '">Follow-up: ' + fup + '</div>' : '';
+      return '<div class="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-1.5">'
+        + '<div class="flex items-center gap-2"><span class="font-semibold text-white text-sm">' + esc(c.full_name) + '</span>' + tierBadge(c.tier) + '</div>'
+        + stageHtml + phone + email + fupHtml + '</div>';
+    }).join('');
+  } catch (_) {}
+}
+document.getElementById('contact-search').addEventListener('input', () => {
+  clearTimeout(contactDebounce);
+  contactDebounce = setTimeout(searchContacts, 300);
+});
+document.querySelectorAll('.tier-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tier-btn').forEach(b => { b.className = 'tier-btn text-xs px-2 py-1 rounded bg-gray-900 text-gray-400 border border-gray-700'; });
+    btn.className = 'tier-btn active text-xs px-2 py-1 rounded bg-gray-700 text-white border border-gray-600';
+    contactTier = btn.dataset.tier;
+    searchContacts();
+  });
+});
+
+// ── Deals ─────────────────────────────────────────────────
+function stageBadge(stage) {
+  const map = { active: 'bg-blue-900 text-blue-300', pending: 'bg-amber-900 text-amber-300', under_contract: 'bg-green-900 text-green-300', listing: 'bg-purple-900 text-purple-300' };
+  return '<span class="text-xs px-1.5 py-0.5 rounded ' + (map[stage] || 'bg-gray-700 text-gray-300') + '">' + esc(stage) + '</span>';
+}
+async function loadDeals() {
+  document.getElementById('deals-list').innerHTML = '<div class="flex justify-center py-10"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>';
+  try {
+    const data = await api('GET', '?api=deals');
+    const grouped = {};
+    for (const d of data) { const type = d.type || 'other'; if (!grouped[type]) grouped[type] = []; grouped[type].push(d); }
+    const typeLabel = { listing: '🏠 Listings', buyer: '🤝 Buyers', development: '🏗 Development' };
+    let html = '';
+    for (const [type, deals] of Object.entries(grouped)) {
+      const dealsHtml = deals.map(d => {
+        const price = d.list_price ? ' · $' + Number(d.list_price).toLocaleString() : '';
+        return '<div class="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3 flex-wrap">'
+          + '<div class="flex-1 min-w-0"><div class="font-medium text-white text-sm">' + esc(d.property_address) + '</div>'
+          + '<div class="text-xs text-gray-500">' + esc(d.city) + ', ' + esc(d.state) + price + '</div></div>'
+          + stageBadge(d.stage) + '</div>';
+      }).join('');
+      html += '<div><div class="text-xs font-bold tracking-wider text-gray-500 uppercase mb-2">' + (typeLabel[type] || type.toUpperCase()) + ' (' + deals.length + ')</div>'
+        + '<div class="space-y-2">' + dealsHtml + '</div></div>';
+    }
+    document.getElementById('deals-list').innerHTML = html || '<div class="text-gray-500 text-sm py-8 text-center">No active deals</div>';
+  } catch (_) {}
+}
+
+// ── Brain Dump ────────────────────────────────────────────
+async function loadDump() {
+  document.getElementById('dump-list').innerHTML = '<div class="flex justify-center py-10"><span class="spinner text-blue-500 text-2xl">&#x27F3;</span></div>';
+  try {
+    const data = await api('GET', '?api=dump');
+    if (!data.length) { document.getElementById('dump-list').innerHTML = '<div class="text-gray-500 text-sm py-8 text-center">Brain dump clear 🧠</div>'; return; }
+    document.getElementById('dump-list').innerHTML = data.map(b => {
+      return '<div id="dump-' + esc(b.id) + '" class="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-start gap-3">'
+        + '<div class="flex-1 min-w-0"><div class="text-sm text-white leading-snug">' + esc(b.raw_text) + '</div>'
+        + '<div class="flex items-center gap-2 mt-1.5"><span class="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">' + esc(b.source || 'unknown') + '</span>'
+        + '<span class="text-xs text-gray-600">' + timeAgo(b.captured_at) + '</span></div></div>'
+        + '<div class="flex gap-1 flex-shrink-0">'
+        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'done\')" class="text-xs px-2 py-1 rounded bg-green-900/50 text-green-400 hover:bg-green-900">✅</button>'
+        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'skipped\')" class="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 hover:bg-gray-700">⏭</button>'
+        + '</div></div>';
+    }).join('');
+  } catch (_) {}
+}
+async function dumpAction(id, status) {
+  try {
+    await api('PATCH', '?api=dump', { id, status });
+    const el = document.getElementById('dump-' + id);
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }
+    toast('Item ' + status);
+  } catch (_) {}
+}
+
+async function refreshAll() {
+  await loadTasks();
+  const activeTab = document.querySelector('.tab-panel.active');
+  if (activeTab) {
+    if (activeTab.id === 'tab-deals') loadDeals();
+    if (activeTab.id === 'tab-dump') loadDump();
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────
+checkAuth();
+if (TOKEN) loadTasks();
+</script>
+</body>
+</html>
