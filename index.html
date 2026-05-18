@@ -143,7 +143,10 @@
     <textarea id="dump-input" rows="3" placeholder="Drop anything here — idea, task, follow-up, random thought. AIRE will sort it out." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-100 outline-none focus:border-blue-500 resize-none placeholder-gray-600"></textarea>
     <div class="flex items-center justify-between mt-2">
       <span class="text-xs text-gray-600">Cmd+Enter to submit</span>
-      <button onclick="submitDump()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-lg font-medium">Drop It</button>
+      <div class="flex gap-2">
+        <button onclick="runDisposition()" id="dispose-btn" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-3 py-1.5 rounded-lg font-medium">⚡ Disposition All</button>
+        <button onclick="submitDump()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-1.5 rounded-lg font-medium">Drop It</button>
+      </div>
     </div>
   </div>
   <div id="dump-list" class="space-y-3">
@@ -337,6 +340,7 @@
 
 <script>
 const API_BASE = 'https://zxmhpgfiuhgcjqwyjuxz.supabase.co/functions/v1/dashboard';
+const DISPOSITIONER_BASE = 'https://zxmhpgfiuhgcjqwyjuxz.supabase.co/functions/v1/brain-dump-dispositioner';
 let TOKEN = localStorage.getItem('trav_token') || '';
 let allTasks = [];
 let currentModalTaskId = null;
@@ -805,6 +809,30 @@ async function loadDeals() {
 }
 
 // ── Brain Dump ────────────────────────────────────────────
+async function runDisposition() {
+  const btn = document.getElementById('dispose-btn');
+  btn.textContent = '⚡ Running...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(DISPOSITIONER_BASE, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (r.status === 401) { logout(); return; }
+    const data = await r.json();
+    if (data.error) { toast(data.error, true); return; }
+    const n = data.processed ?? 0;
+    toast(n === 0 ? 'Nothing to disposition' : n + ' item' + (n > 1 ? 's' : '') + ' dispositioned ✓');
+    if (n > 0) { loadDump(); loadTasks(); }
+  } catch (e) {
+    toast('Disposition failed', true);
+  } finally {
+    btn.textContent = '⚡ Disposition All';
+    btn.disabled = false;
+  }
+}
+
 async function submitDump() {
   const el = document.getElementById('dump-input');
   const text = el.value.trim();
