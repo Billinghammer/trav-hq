@@ -862,8 +862,8 @@ async function loadDump() {
         + '<div class="flex items-center gap-2 mt-1.5"><span class="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">' + esc(b.source || 'unknown') + '</span>'
         + '<span class="text-xs text-gray-600">' + timeAgo(b.captured_at) + '</span></div></div>'
         + '<div class="flex gap-1 flex-shrink-0">'
-        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'done\')" class="text-xs px-2 py-1 rounded bg-green-900/50 text-green-400 hover:bg-green-900">✅</button>'
-        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'skipped\')" class="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 hover:bg-gray-700">⏭</button>'
+        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'done\')" class="text-xs px-2.5 py-1 rounded-lg bg-green-800 hover:bg-green-700 text-green-200 font-medium">Done</button>'
+        + '<button onclick="dumpAction(\'' + esc(b.id) + '\',\'skipped\')" class="text-xs px-2.5 py-1 rounded-lg bg-red-900 hover:bg-red-800 text-red-300 font-medium">✕</button>'
         + '</div></div>';
     }).join('');
   } catch (_) {}
